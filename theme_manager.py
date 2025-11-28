@@ -1,10 +1,10 @@
 import customtkinter as ctk
 
-# Початкове налаштування (зміниться через налаштування)
+# Початкове налаштування
 ctk.set_appearance_mode("Light")
 
 class AppTheme:
-    _mode = "Light" # Light або Dark
+    _mode = "Light"
 
     @classmethod
     def set_mode(cls, mode):
@@ -15,7 +15,6 @@ class AppTheme:
     def get_mode(cls):
         return cls._mode
 
-    # Динамічні кольори (повертають значення залежно від режиму)
     @property
     def BACKGROUND(self):
         return "#EEFBF9" if self._mode == "Light" else "#121212"
@@ -32,19 +31,18 @@ class AppTheme:
     def TEXT_SEC(self):
         return "gray" if self._mode == "Light" else "#A0A0A0"
 
-    # Статичні кольори (однакові для обох тем)
     PRIMARY = "#87A600"
     SECONDARY = "#81AD85"
     SUCCESS = "#2E7D32"
     DANGER = "#C62828"
-    TEXT_LIGHT = "#FFFFFF" # Текст на кнопках завжди білий
+    INFO = "#0288D1"
+    TEXT_LIGHT = "#FFFFFF"
     
     COLOR_A = "#4CAF50"
     COLOR_B = "#FFA000"
     COLOR_C = "#D32F2F"
     COLOR_DEAD = "#9E9E9E"
 
-# Створюємо екземпляр теми для зручного доступу
 theme = AppTheme()
 
 class LocalizationManager:
@@ -91,21 +89,27 @@ class LocalizationManager:
                 "msg_saved": "Зміни успішно збережено!",
                 "msg_deleted": "Товар видалено.",
                 "confirm_del": "Видалити цей товар?",
-                
                 "empty_title": "Склад порожній... 🦗",
                 "empty_text": "Схоже, тут гуляє лише вітер. Час додати перші товари!",
                 
                 "total_items": "Всього товарів",
                 "dead_stock": "Неліквіди",
                 "info_title": "Довідка користувача",
-                
                 "set_lang": "Мова інтерфейсу",
-                "set_theme": "Тема оформлення", # NEW
-                "theme_light": "Світла",
-                "theme_dark": "Темна",
+                "set_theme": "Тема оформлення",
                 "set_curr": "Валюта",
-                "set_acc": "Акаунт",
                 "btn_save_set": "Зберегти налаштування",
+
+                # Підказки
+                "help_type_title": "Типи запасів",
+                "help_type_text": "• Goods (Товарний): Готова продукція для продажу.\n• Prod (Виробничий): Сировина або деталі для виробництва.",
+                "help_strat_title": "Стратегії",
+                "help_strat_text": "• JIT: Замовлення точно в строк (для дорогих товарів).\n• Interval: Поповнення за графіком (для дешевих).\n• MinMax: Замовлення тільки при досягненні мінімуму.",
+
+                # Пояснення
+                "insight_abc": "Чому група {group}?\nТовар генерує {share}% від загального обороту складу.\n(Порогові значення: A=75%, B=20%, C=5%)",
+                "insight_xyz": "Чому група {group}?\nКоефіцієнт варіації попиту = {coeff}%.\n(X < 10%, 10% <= Y < 25%, Z >= 25%)",
+                "insight_eoq": "Розрахунок EOQ:\nОптимальна партія = {qty} од.\nЦе баланс між вартістю замовлення ({order_cost}) та зберігання ({hold_cost}).",
 
                 "col_barcode": "Баркод (ID)",
                 "col_name": "Назва",
@@ -119,39 +123,44 @@ class LocalizationManager:
                 "lbl_discount": "Знижка (%)",
                 "lbl_price": "Ціна",
                 "lbl_qty": "Кількість",
-                
+                "lbl_min": "Мін. запас",
+                "lbl_max": "Макс. запас",
+                "lbl_rop": "Точка замовлення (ROP)",
+                "lbl_strat": "Стратегія поповнення",
+
                 "type_prod": "Виробничий",
                 "type_goods": "Товарний",
 
-                "det_price": "Ціна одиниці",
-                "det_turnover": "Оборот (Грошовий)",
-                "det_holding": "Витрати на зберігання",
-                "det_ordering": "Витрати на замовлення",
                 "det_abc": "Група ABC",
                 "det_xyz": "Група XYZ",
+                "det_status": "Статус замовлення",
+                "status_ok": "✅ Запас в нормі",
+                "status_order": "⚠️ Потрібно замовити: ",
                 
-                # ПОВНИЙ ТЕКСТ ДОВІДКИ
+                # --- ВИПРАВЛЕНО: ПОВНИЙ ТЕКСТ ДОВІДКИ ---
                 "help_text": """
-                \n1. АВС-аналіз (Правило Парето):
-                [cite_start]Дозволяє класифікувати ресурси фірми залежно від ступеня їх важливості[cite: 14].
-                - Група А: Найважливіші (80% вартості запасів). [cite_start]Вимагають ретельного планування, щоденного обліку та контролю[cite: 15, 36].
-                - Група В: Середні (наступні 15% вартості). [cite_start]Звичайний контроль[cite: 17].
-                - Група С: Другорядні (останні 5% вартості). [cite_start]Велика частина асортименту, перевірка раз на півроку[cite: 20, 24].
+=== ІНСТРУКЦІЯ КОРИСТУВАЧА OPTISTOCK ===
 
-                2. XYZ-аналіз (Стабільність попиту):
-                [cite_start]Групування ресурсів залежно від характеру споживання та точності прогнозування[cite: 27].
-                - X: Стабільний попит (коефіцієнт варіації v < 10%). [cite_start]Висока точність прогнозу[cite: 29].
-                - Y: Сезонні коливання (10% <= v < 25%). [cite_start]Середні можливості прогнозування[cite: 30].
-                - Z: Нерегулярний попит (v >= 25%). [cite_start]Низька точність[cite: 31].
+1. [cite_start]АВС-АНАЛІЗ (Правило Парето) [cite: 14]
+Метод дозволяє класифікувати ресурси фірми за ступенем їх важливості:
+• Група А: Найважливіші (80% вартості запасів). [cite_start]Вимагають ретельного планування та щоденного контролю[cite: 15, 16].
+• Група В: Середні (наступні 15% вартості). [cite_start]Звичайний контроль[cite: 17].
+• Група С: Другорядні (останні 5% вартості). [cite_start]Велика частина асортименту, перевірка раз на півроку[cite: 20].
 
-                3. Нормування запасів (EOQ):
-                [cite_start]Розрахунок оптимального розміру замовлення за формулою Уілсона для мінімізації сукупних витрат на замовлення та зберігання[cite: 349, 370].
-                Формула: Q* = sqrt((2 * D * L) / H).
+2. [cite_start]XYZ-АНАЛІЗ (Стабільність попиту) [cite: 27]
+Групування ресурсів залежно від характеру споживання:
+• X: Стабільний попит (коефіцієнт варіації v < 10%). [cite_start]Висока точність прогнозу[cite: 29].
+• Y: Сезонні коливання (10% <= v < 25%). [cite_start]Середні можливості прогнозування[cite: 30].
+• Z: Нерегулярний попит (v >= 25%). [cite_start]Низька точність, робота під замовлення[cite: 31].
 
-                4. Стратегії управління:
-                - Фіксований розмір (JIT): Для групи А або AX. [cite_start]Замовлення при досягненні точки замовлення[cite: 39, 386].
-                - Фіксований інтервал: Для групи С. [cite_start]Замовлення за графіком (наприклад, щовівторка)[cite: 433].
-                - Мінімум-Максимум: Для нестабільного попиту (Z). [cite_start]Замовлення тільки якщо запас впав нижче мінімуму[cite: 488].
+3. [cite_start]НОРМУВАННЯ (EOQ) [cite: 349]
+Розрахунок оптимального розміру замовлення за формулою Уілсона для мінімізації сукупних витрат на замовлення та зберігання.
+Формула: Q* = sqrt((2 * D * L) / H).
+
+4. [cite_start]СТРАТЕГІЇ УПРАВЛІННЯ [cite: 379]
+• Фіксований розмір (JIT): Для групи А. [cite_start]Замовлення створюється, коли запас падає до точки перезамовлення[cite: 386].
+• Фіксований інтервал: Для групи С. [cite_start]Замовлення робляться за графіком (наприклад, щовівторка) до максимального рівня[cite: 434].
+• Мінімум-Максимум: Для нестабільного попиту (Z). [cite_start]Замовлення тільки якщо запас впав нижче мінімуму[cite: 488].
                 """
             },
             "en": {
@@ -173,22 +182,26 @@ class LocalizationManager:
                 "msg_saved": "Changes saved successfully!",
                 "msg_deleted": "Item deleted.",
                 "confirm_del": "Delete this item?",
-
                 "empty_title": "Warehouse is empty... 🦗",
                 "empty_text": "Looks like only the wind lives here. Time to add some products!",
 
                 "total_items": "Total Items",
                 "dead_stock": "Dead Stock",
                 "info_title": "User Guide",
-
                 "set_lang": "Interface Language",
                 "set_theme": "App Theme",
-                "theme_light": "Light",
-                "theme_dark": "Dark",
                 "set_curr": "Currency",
-                "set_acc": "Account",
                 "btn_save_set": "Save Settings",
-                
+
+                "help_type_title": "Stock Types",
+                "help_type_text": "• Goods: Ready-to-sell products.\n• Prod: Raw materials for production.",
+                "help_strat_title": "Strategies",
+                "help_strat_text": "• JIT: Just-In-Time (for high value).\n• Interval: Scheduled replenishment.\n• MinMax: Order only when below minimum.",
+
+                "insight_abc": "Why Group {group}?\nGenerates {share}% of total warehouse turnover.\n(Thresholds: A=75%, B=20%, C=5%)",
+                "insight_xyz": "Why Group {group}?\nDemand variation coefficient = {coeff}%.\n(X < 10%, 10% <= Y < 25%, Z >= 25%)",
+                "insight_eoq": "EOQ Logic:\nOptimal Batch = {qty} units.\nBalances Order Cost ({order_cost}) vs Holding Cost ({hold_cost}).",
+
                 "col_barcode": "Barcode (ID)",
                 "col_name": "Name",
                 "col_type": "Type",
@@ -201,37 +214,44 @@ class LocalizationManager:
                 "lbl_discount": "Discount (%)",
                 "lbl_price": "Price",
                 "lbl_qty": "Quantity",
+                "lbl_min": "Min Stock",
+                "lbl_max": "Max Stock",
+                "lbl_rop": "Reorder Point",
+                "lbl_strat": "Replenishment Strategy",
 
                 "type_prod": "Production",
                 "type_goods": "Goods",
 
-                "det_price": "Unit Price",
-                "det_turnover": "Turnover (Value)",
-                "det_holding": "Holding Cost",
-                "det_ordering": "Ordering Cost",
                 "det_abc": "ABC Group",
                 "det_xyz": "XYZ Group",
+                "det_status": "Order Status",
+                "status_ok": "✅ Stock OK",
+                "status_order": "⚠️ Need to order: ",
 
+                # --- FIXED: FULL HELP TEXT ---
                 "help_text": """
-                \n1. ABC Analysis (Pareto Rule):
-                [cite_start]Classifies resources based on their importance[cite: 14].
-                - Group A: Vital items (80% value). [cite_start]Strict daily control[cite: 15, 36].
-                - Group B: Medium importance (15% value). [cite_start]Regular control[cite: 17].
-                - Group C: Low importance (5% value). [cite_start]Periodic review[cite: 20].
+=== OPTISTOCK USER GUIDE ===
 
-                2. XYZ Analysis (Demand Stability):
-                [cite_start]Based on consumption regularity[cite: 27].
-                - X: Stable demand (v < 10%). [cite_start]High forecast accuracy[cite: 29].
-                - [cite_start]Y: Seasonal fluctuations (10% <= v < 25%)[cite: 30].
-                - [cite_start]Z: Irregular demand (v >= 25%)[cite: 31].
+1. [cite_start]ABC ANALYSIS (Pareto Rule) [cite: 14]
+Classifies resources based on their importance:
+• Group A: Vital items (80% value). [cite_start]Strict daily control and planning[cite: 15].
+• Group B: Medium importance (15% value). [cite_start]Regular control[cite: 17].
+• Group C: Low importance (5% value). [cite_start]Periodic review every 6 months[cite: 20].
 
-                3. Norming (EOQ):
-                [cite_start]Calculates Economic Order Quantity using Wilson's formula to minimize total costs[cite: 349].
+2. [cite_start]XYZ ANALYSIS (Demand Stability) [cite: 27]
+Based on consumption regularity and forecast accuracy:
+• X: Stable demand (v < 10%). [cite_start]High forecast accuracy[cite: 29].
+• Y: Seasonal fluctuations (10% <= v < 25%). [cite_start]Medium forecast accuracy[cite: 30].
+• Z: Irregular demand (v >= 25%). [cite_start]Low accuracy, order on request[cite: 31].
 
-                4. Management Strategies:
-                - [cite_start]Fixed Order Size (JIT): For Group A/AX[cite: 39].
-                - [cite_start]Fixed Interval: For Group C[cite: 433].
-                - [cite_start]Min-Max: For irregular demand (Z)[cite: 488].
+3. [cite_start]NORMING (EOQ) [cite: 349]
+Calculates Economic Order Quantity using Wilson's formula to minimize total costs (Ordering + Holding).
+Formula: Q* = sqrt((2 * D * L) / H).
+
+4. [cite_start]MANAGEMENT STRATEGIES [cite: 379]
+[cite_start]• Fixed Size (JIT): For Group A. Orders placed when stock hits Reorder Point[cite: 386].
+[cite_start]• Fixed Interval: For Group C. Scheduled orders (e.g., weekly) up to Max Level[cite: 434].
+• Min-Max: For irregular demand (Z). [cite_start]Orders placed only if stock drops below Min[cite: 488].
                 """
             }
         }

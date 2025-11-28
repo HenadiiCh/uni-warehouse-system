@@ -3,19 +3,19 @@ from PIL import Image, ImageTk
 import threading
 import time
 import uuid
-import ctypes # ДЛЯ ІКОНКИ WINDOWS
+import ctypes
+from tkinter import messagebox
 
-from theme_manager import theme, locale, AppTheme # Імпортуємо оновлену тему
+from theme_manager import theme, locale, AppTheme 
 from models import Product, InventoryManager
 
-# --- ФІКС ІКОНКИ ДЛЯ WINDOWS ---
 try:
-    myappid = 'mycompany.optistock.pro.1.0' # Довільний унікальний ID
+    myappid = 'mycompany.optistock.pro.1.0'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except:
     pass
 
-# --- Діалог Додавання/Редагування (Оновлені кольори) ---
+# --- Product Dialog ---
 class ProductDialog(ctk.CTkToplevel):
     def __init__(self, parent, on_save_callback, product_to_edit=None):
         super().__init__(parent)
@@ -24,47 +24,84 @@ class ProductDialog(ctk.CTkToplevel):
         
         title_key = "btn_edit" if product_to_edit else "btn_add"
         self.title(locale.get(title_key))
-        self.geometry("450x700")
-        self.configure(fg_color=theme.BACKGROUND) # Dynamic Color
+        self.geometry("500x800")
+        self.configure(fg_color=theme.BACKGROUND)
         self.attributes("-topmost", True)
         self.grab_set()
 
-        # Баркод
-        self.create_input(locale.get("col_barcode"), "barcode_entry", 
+        self.tabview = ctk.CTkTabview(self, width=460, height=700, fg_color="transparent")
+        self.tabview.pack(pady=10)
+        self.tabview.add("General")
+        self.tabview.add("Logistics")
+        
+        # --- TAB 1: GENERAL ---
+        t1 = self.tabview.tab("General")
+        
+        self.create_input(t1, locale.get("col_barcode"), "barcode_entry", 
                           default=product_to_edit.id_code if product_to_edit else str(uuid.uuid4())[:8].upper())
         if product_to_edit: self.barcode_entry.configure(state="disabled")
 
-        self.create_input(locale.get("col_name"), "name_entry", 
+        self.create_input(t1, locale.get("col_name"), "name_entry", 
                           default=product_to_edit.name if product_to_edit else "")
         
-        lbl_type = ctk.CTkLabel(self, text=locale.get("col_type"), text_color=theme.TEXT_MAIN)
-        lbl_type.pack(pady=(10, 0))
+        type_frame = ctk.CTkFrame(t1, fg_color="transparent")
+        type_frame.pack(fill="x", padx=60, pady=(10, 0))
+        ctk.CTkLabel(type_frame, text=locale.get("col_type"), text_color=theme.TEXT_MAIN).pack(side="left")
+        ctk.CTkButton(type_frame, text="?", width=20, height=20, corner_radius=10, fg_color=theme.INFO,
+                      command=lambda: self.show_help("type")).pack(side="left", padx=5)
+
         self.type_var = ctk.StringVar(value=product_to_edit.type_id if product_to_edit else "goods")
-        ctk.CTkSegmentedButton(self, values=["goods", "prod"], variable=self.type_var,
+        ctk.CTkSegmentedButton(t1, values=["goods", "prod"], variable=self.type_var,
                                selected_color=theme.PRIMARY, text_color="black").pack(pady=5)
 
-        self.create_input(locale.get("lbl_price"), "price_entry", 
+        self.create_input(t1, locale.get("lbl_price"), "price_entry", 
                           default=str(product_to_edit.price) if product_to_edit else "")
-        self.create_input(locale.get("lbl_qty"), "qty_entry", 
+        self.create_input(t1, locale.get("lbl_qty"), "qty_entry", 
                           default=str(product_to_edit.quantity) if product_to_edit else "")
-        self.create_input(locale.get("lbl_discount"), "disc_entry", 
+        self.create_input(t1, locale.get("lbl_discount"), "disc_entry", 
                           default=str(product_to_edit.discount) if product_to_edit else "0")
+
+        # --- TAB 2: LOGISTICS ---
+        t2 = self.tabview.tab("Logistics")
         
-        self.create_input("Order Cost (L)", "order_cost_entry", 
+        strat_frame = ctk.CTkFrame(t2, fg_color="transparent")
+        strat_frame.pack(fill="x", padx=60, pady=(10, 0))
+        ctk.CTkLabel(strat_frame, text=locale.get("lbl_strat"), text_color=theme.TEXT_MAIN, font=("Arial", 14, "bold")).pack(side="left")
+        ctk.CTkButton(strat_frame, text="?", width=20, height=20, corner_radius=10, fg_color=theme.INFO,
+                      command=lambda: self.show_help("strat")).pack(side="left", padx=5)
+
+        self.strat_var = ctk.StringVar(value=product_to_edit.strategy if product_to_edit else "jit")
+        ctk.CTkOptionMenu(t2, variable=self.strat_var, fg_color=theme.PRIMARY,
+                          values=["jit", "interval", "minmax"]).pack(pady=5)
+        
+        self.create_input(t2, locale.get("lbl_min"), "min_entry", 
+                          default=str(product_to_edit.min_stock) if product_to_edit else "0")
+        self.create_input(t2, locale.get("lbl_max"), "max_entry", 
+                          default=str(product_to_edit.max_stock) if product_to_edit else "100")
+        self.create_input(t2, locale.get("lbl_rop"), "rop_entry", 
+                          default=str(product_to_edit.reorder_point) if product_to_edit else "10")
+
+        ctk.CTkLabel(t2, text="--- EOQ Params ---", text_color="gray").pack(pady=10)
+        self.create_input(t2, "Order Cost (L)", "order_cost_entry", 
                           default=str(product_to_edit.ordering_cost) if product_to_edit else "50")
-        self.create_input("Holding Cost % (H)", "hold_cost_entry", 
+        self.create_input(t2, "Holding % (H)", "hold_cost_entry", 
                           default=str(product_to_edit.holding_cost_percent) if product_to_edit else "0.2")
 
         ctk.CTkButton(self, text=locale.get("btn_save"), fg_color=theme.PRIMARY, 
-                      command=self.save_product).pack(pady=30)
+                      command=self.save_product).pack(pady=10, side="bottom")
 
-    def create_input(self, label, attr, default=""):
-        ctk.CTkLabel(self, text=label, text_color=theme.TEXT_MAIN).pack(pady=(5,0))
-        # Input fields are usually white/light grey even in dark mode for contrast, or adapt
-        entry = ctk.CTkEntry(self, width=250, fg_color="white", text_color="black")
+    def create_input(self, parent, label, attr, default=""):
+        ctk.CTkLabel(parent, text=label, text_color=theme.TEXT_MAIN).pack(pady=(5,0))
+        entry = ctk.CTkEntry(parent, width=250, fg_color="white", text_color="black")
         entry.pack(pady=2)
         if default: entry.insert(0, default)
         setattr(self, attr, entry)
+
+    def show_help(self, topic):
+        if topic == "type":
+            messagebox.showinfo(locale.get("help_type_title"), locale.get("help_type_text"))
+        elif topic == "strat":
+            messagebox.showinfo(locale.get("help_strat_title"), locale.get("help_strat_text"))
 
     def save_product(self):
         try:
@@ -78,32 +115,39 @@ class ProductDialog(ctk.CTkToplevel):
                 ordering_cost=float(self.order_cost_entry.get()),
                 holding_cost_percent=float(self.hold_cost_entry.get()),
                 discount=float(self.disc_entry.get()),
-                sales_history=history
+                sales_history=history,
+                min_stock=int(self.min_entry.get()),
+                max_stock=int(self.max_entry.get()),
+                reorder_point=int(self.rop_entry.get()),
+                strategy=self.strat_var.get()
             )
             self.on_save_callback(new_product, is_edit=bool(self.product))
             self.destroy()
         except ValueError:
             print("Validation Error")
 
-# --- Info Dialog (Виправлено) ---
+# --- Info Dialog (User Guide) ---
 class InfoDialog(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title(locale.get("info_title"))
-        self.geometry("600x500")
+        self.geometry("600x550")
         self.configure(fg_color=theme.BACKGROUND)
         self.attributes("-topmost", True)
         
         ctk.CTkLabel(self, text="OptiStock Guide", font=("Arial", 20, "bold"), text_color=theme.PRIMARY).pack(pady=10)
         
-        # Текстове поле
-        txt = ctk.CTkTextbox(self, width=550, height=400, fg_color=theme.SURFACE, 
+        # Використовуємо Textbox для великого тексту
+        txt = ctk.CTkTextbox(self, width=550, height=450, fg_color=theme.SURFACE, 
                              text_color=theme.TEXT_MAIN, font=("Arial", 12))
         txt.pack(pady=10, padx=20)
-        txt.insert("0.0", locale.get("help_text"))
-        txt.configure(state="disabled")
+        
+        # Вставка тексту з локалізації
+        help_content = locale.get("help_text")
+        txt.insert("0.0", help_content)
+        txt.configure(state="disabled") # Заборона редагування
 
-# --- ГОЛОВНИЙ ЗАСТОСУНОК ---
+# --- MAIN APP ---
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -113,8 +157,7 @@ class App(ctk.CTk):
         self.configure(fg_color=theme.BACKGROUND)
         
         self.manager = InventoryManager()
-        # Демо дані можна закоментувати, щоб перевірити Empty State
-        # self.seed_demo_data() 
+        self.seed_demo_data()
         
         self.sidebar = None
         self.main_area = None
@@ -131,7 +174,6 @@ class App(ctk.CTk):
         self.load_images()
         
         self.show_splash_screen()
-        
         self.after(200, self.set_app_icon)
 
     def load_images(self):
@@ -144,45 +186,40 @@ class App(ctk.CTk):
             self.img_logo_large, _ = get_resized("logo_large.png", 300)
             self.img_logo_small, pil_small = get_resized("logo_small.png", 40)
             self.icon_tk = ImageTk.PhotoImage(pil_small)
-            
         except Exception as e:
             print(f"Error loading images: {e}")
 
     def set_app_icon(self):
-        if self.icon_tk:
-            self.iconphoto(True, self.icon_tk)
+        if self.icon_tk: self.iconphoto(True, self.icon_tk)
 
     def seed_demo_data(self):
-        self.manager.add_product(Product("A1001", "MacBook Air M2", 45000, 8, "goods", sales_history=[20, 22, 19, 21])) 
-        self.manager.add_product(Product("B2050", "Winter Tires R16", 2000, 100, "prod", sales_history=[5, 80, 50, 10])) 
+        p1 = Product("T1", "Trigger JIT Item", 100, 8, reorder_point=10, strategy="jit", sales_history=[10,10,10,10])
+        p2 = Product("T2", "MinMax Safe", 200, 20, min_stock=10, max_stock=100, strategy="minmax", sales_history=[20,50,10,5])
+        self.manager.add_product(p1)
+        self.manager.add_product(p2)
         self.recalc_analytics()
 
     def recalc_analytics(self):
         for p in self.manager.products: p.assign_xyz()
         self.manager.perform_abc_analysis()
 
-    # --- Notification ---
     def show_notification(self, message, is_error=False):
         if self.notification_label: self.notification_label.destroy()
         color = theme.DANGER if is_error else theme.SUCCESS
         self.notification_label = ctk.CTkLabel(self, text=message, fg_color=color, 
-                                               text_color="white", corner_radius=10, height=40, width=200)
+                                               text_color="white", corner_radius=10, height=40, width=300)
         self.notification_label.place(relx=0.5, rely=0.05, anchor="n")
         self.after(2500, self.notification_label.destroy)
 
-    # --- Splash Screen ---
     def show_splash_screen(self):
         self.splash_frame = ctk.CTkFrame(self, fg_color=theme.BACKGROUND)
         self.splash_frame.pack(fill="both", expand=True)
-
         if self.img_logo_large:
             ctk.CTkLabel(self.splash_frame, text="", image=self.img_logo_large).pack(expand=True, pady=(50, 20))
-        
         ctk.CTkLabel(self.splash_frame, text="OptiStock", font=("Arial", 40, "bold"), text_color=theme.PRIMARY).pack()
         self.progress = ctk.CTkProgressBar(self.splash_frame, progress_color=theme.PRIMARY)
         self.progress.pack(pady=40)
         self.progress.set(0)
-
         threading.Thread(target=self._animate_loading).start()
 
     def _animate_loading(self):
@@ -198,17 +235,14 @@ class App(ctk.CTk):
         if self.btn_info: self.btn_info.destroy()
 
     def build_ui_structure(self):
-        self.configure(fg_color=theme.BACKGROUND) # Update background on theme change
+        self.configure(fg_color=theme.BACKGROUND)
         self.clear_ui()
 
-        # Sidebar
         self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0, fg_color=theme.SURFACE)
         self.sidebar.pack(side="left", fill="y")
 
-        # Logo
         logo_box = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         logo_box.pack(pady=30, padx=20, anchor="w")
-        
         lbl_img = ctk.CTkLabel(logo_box, text="", image=self.img_logo_small)
         lbl_txt = ctk.CTkLabel(logo_box, text="OptiStock", font=("Arial", 22, "bold"), text_color=theme.PRIMARY)
         if self.img_logo_small: lbl_img.pack(side="left", padx=(0, 10))
@@ -218,29 +252,22 @@ class App(ctk.CTk):
             widget.bind("<Button-1>", lambda e: self.switch_view("dashboard"))
             widget.configure(cursor="hand2")
 
-        # Menu
         self.create_menu_btn(locale.get("menu_main"), lambda: self.switch_view("dashboard"), "dashboard")
         self.create_menu_btn(f"+ {locale.get('btn_add')}", lambda: self.open_product_dialog(), "add")
         self.create_menu_btn(locale.get("menu_settings"), lambda: self.switch_view("settings"), "settings")
 
-        # Main Area
         self.main_area = ctk.CTkFrame(self, fg_color="transparent")
         self.main_area.pack(side="right", fill="both", expand=True, padx=30, pady=30)
         
-        # Info Button
         self.btn_info = ctk.CTkButton(self, text="?", width=50, height=50, corner_radius=25, 
                       fg_color=theme.PRIMARY, font=("Arial", 24, "bold"),
-                      text_color="white",
-                      command=self.open_info_dialog)
+                      text_color="white", command=self.open_info_dialog)
         self.btn_info.place(relx=0.96, rely=0.96, anchor="se")
 
         self.switch_view(self.current_view)
 
-    # --- Navigation ---
     def switch_view(self, view_name, product_data=None):
         self.current_view = view_name
-        
-        # ФІКС БАГА: Очищаємо Main Area перед малюванням нового контенту
         if self.main_area:
             for widget in self.main_area.winfo_children(): widget.destroy()
 
@@ -251,35 +278,28 @@ class App(ctk.CTk):
         elif view_name == "details" and product_data:
             self.draw_product_details(product_data)
 
-    # --- 1. DASHBOARD ---
     def draw_dashboard_content(self):
-        # Header
         ctk.CTkLabel(self.main_area, text=locale.get("header_dashboard"), 
                      font=("Arial", 28, "bold"), text_color=theme.TEXT_MAIN).pack(anchor="w", pady=(0, 20))
 
-        # --- EMPTY STATE (Якщо нема товарів) ---
         if not self.manager.products:
             empty_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
             empty_frame.pack(expand=True)
-            
             ctk.CTkLabel(empty_frame, text="📦", font=("Arial", 100)).pack()
             ctk.CTkLabel(empty_frame, text=locale.get("empty_title"), 
                          font=("Arial", 24, "bold"), text_color=theme.TEXT_MAIN).pack(pady=10)
             ctk.CTkLabel(empty_frame, text=locale.get("empty_text"), 
                          font=("Arial", 14), text_color=theme.TEXT_SEC).pack()
-            
             ctk.CTkButton(empty_frame, text=locale.get("btn_add"), fg_color=theme.PRIMARY,
                           command=self.open_product_dialog).pack(pady=20)
-            return # Виходимо, таблицю не малюємо
+            return
 
-        # Stats
         stats_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         stats_frame.pack(anchor="w", fill="x", pady=(0, 20))
         self.create_stat_card(stats_frame, locale.get("total_items"), str(len(self.manager.products)))
         dead_count = sum(1 for p in self.manager.products if p.is_dead_stock)
         self.create_stat_card(stats_frame, locale.get("dead_stock"), str(dead_count), theme.COLOR_DEAD)
 
-        # Table
         table_frame = ctk.CTkScrollableFrame(self.main_area, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
         
@@ -290,7 +310,7 @@ class App(ctk.CTk):
             (locale.get("col_name"), "name"),
             ("ABC", "abc_category"),
             (locale.get("col_stock"), "quantity"),
-            (locale.get("lbl_price"), "price"),
+            (locale.get("col_strategy"), "strategy"),
             (locale.get("col_action"), None)
         ]
         self.create_table_header(table_frame, cols)
@@ -316,31 +336,37 @@ class App(ctk.CTk):
         else:
             self.sort_column = col_key
             self.sort_reverse = False
-        
-        # Перемальовуємо Dashboard (вже з очищенням)
-        self.draw_dashboard_content()
+        self.switch_view("dashboard")
 
-    # --- 2. DETAILS ---
     def draw_product_details(self, product: Product):
         curr = locale.get_currency_symbol()
+        need_order, amount, msg = product.check_replenishment_needs()
         
         top_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         top_frame.pack(fill="x", pady=(0, 20))
         
         ctk.CTkButton(top_frame, text=locale.get("btn_back"), width=100, fg_color="gray",
                       command=lambda: self.switch_view("dashboard")).pack(side="left")
-        
         ctk.CTkLabel(top_frame, text=product.name, font=("Arial", 32, "bold"), 
                      text_color=theme.PRIMARY).pack(side="left", padx=20)
 
         btn_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
         btn_frame.pack(side="right")
-        
         ctk.CTkButton(btn_frame, text=locale.get("btn_edit"), width=100, fg_color=theme.PRIMARY,
                       command=lambda: self.open_product_dialog(product)).pack(side="left", padx=5)
-        
         ctk.CTkButton(btn_frame, text=locale.get("btn_delete"), width=100, fg_color=theme.DANGER,
                       command=lambda: self.delete_product(product)).pack(side="left", padx=5)
+
+        if need_order:
+            alert = ctk.CTkFrame(self.main_area, fg_color=theme.DANGER, corner_radius=10)
+            alert.pack(fill="x", pady=(0, 20))
+            ctk.CTkLabel(alert, text=f"{locale.get('status_order')} {amount:.0f} pcs ({msg})", 
+                         text_color="white", font=("Arial", 16, "bold")).pack(pady=10)
+        else:
+            alert = ctk.CTkFrame(self.main_area, fg_color=theme.SUCCESS, corner_radius=10)
+            alert.pack(fill="x", pady=(0, 20))
+            ctk.CTkLabel(alert, text=f"{locale.get('status_ok')} ({msg})", 
+                         text_color="white", font=("Arial", 16, "bold")).pack(pady=10)
 
         grid_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         grid_frame.pack(fill="both", expand=True)
@@ -353,10 +379,12 @@ class App(ctk.CTk):
         self.create_detail_row(left_col, locale.get("det_price"), f"{product.price} {curr}")
         if product.discount > 0:
             self.create_detail_row(left_col, locale.get("lbl_discount"), f"{product.discount}%", color=theme.DANGER)
-        
         self.create_detail_row(left_col, locale.get("col_stock"), str(product.quantity))
-        self.create_detail_row(left_col, locale.get("det_turnover"), f"{product.calculate_turnover():.2f} {curr}")
         
+        self.create_detail_row(left_col, "Strategy", product.strategy.upper())
+        self.create_detail_row(left_col, "Min / Max", f"{product.min_stock} / {product.max_stock}")
+        self.create_detail_row(left_col, "Reorder Point", str(product.reorder_point))
+
         right_col = ctk.CTkFrame(grid_frame, fg_color=theme.SURFACE, corner_radius=15)
         right_col.pack(side="left", fill="both", expand=True, padx=(10, 0))
         
@@ -364,11 +392,14 @@ class App(ctk.CTk):
         if product.abc_category == "C": abc_col = theme.COLOR_C
 
         self.create_detail_row(right_col, locale.get("det_abc"), str(product.abc_category), color=abc_col)
-        self.create_detail_row(right_col, locale.get("det_xyz"), str(product.xyz_category))
-        self.create_detail_row(right_col, "EOQ", str(product.calculate_eoq()))
-        self.create_detail_row(right_col, locale.get("col_strategy"), product.get_strategy_recommendation())
+        ctk.CTkLabel(right_col, text=product.get_abc_explanation(), text_color=theme.TEXT_SEC, font=("Arial", 11), justify="left").pack(fill="x", padx=20, pady=(0, 10))
 
-    # --- 3. SETTINGS ---
+        self.create_detail_row(right_col, locale.get("det_xyz"), str(product.xyz_category))
+        ctk.CTkLabel(right_col, text=product.get_xyz_explanation(), text_color=theme.TEXT_SEC, font=("Arial", 11), justify="left").pack(fill="x", padx=20, pady=(0, 10))
+        
+        self.create_detail_row(right_col, "EOQ (Calc)", str(product.calculate_eoq()))
+        ctk.CTkLabel(right_col, text=product.get_eoq_explanation(), text_color=theme.TEXT_SEC, font=("Arial", 11), justify="left").pack(fill="x", padx=20, pady=(0, 10))
+
     def draw_settings_content(self):
         ctk.CTkLabel(self.main_area, text=locale.get("header_settings"), 
                      font=("Arial", 28, "bold"), text_color=theme.TEXT_MAIN).pack(anchor="w", pady=(0, 20))
@@ -376,19 +407,16 @@ class App(ctk.CTk):
         container = ctk.CTkFrame(self.main_area, fg_color=theme.SURFACE, corner_radius=15)
         container.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # Language
         ctk.CTkLabel(container, text=locale.get("set_lang"), font=("Arial", 16, "bold"), text_color=theme.TEXT_MAIN).pack(anchor="w", padx=30, pady=(30, 10))
         lang_var = ctk.StringVar(value=locale.get_current_lang())
         ctk.CTkSegmentedButton(container, values=["uk", "en"], variable=lang_var, 
                                selected_color=theme.PRIMARY, command=self.change_language).pack(anchor="w", padx=30)
         
-        # Theme (NEW)
         ctk.CTkLabel(container, text=locale.get("set_theme"), font=("Arial", 16, "bold"), text_color=theme.TEXT_MAIN).pack(anchor="w", padx=30, pady=(20, 10))
         theme_var = ctk.StringVar(value=theme.get_mode())
         ctk.CTkSegmentedButton(container, values=["Light", "Dark"], variable=theme_var,
                                selected_color=theme.PRIMARY, command=self.change_theme).pack(anchor="w", padx=30)
 
-        # Currency
         ctk.CTkLabel(container, text=locale.get("set_curr"), font=("Arial", 16, "bold"), text_color=theme.TEXT_MAIN).pack(anchor="w", padx=30, pady=(20, 10))
         curr_var = ctk.StringVar(value="UAH" if locale.get_currency_symbol() == "₴" else "USD")
         ctk.CTkSegmentedButton(container, values=["UAH", "USD"], variable=curr_var,
@@ -397,7 +425,6 @@ class App(ctk.CTk):
         ctk.CTkButton(container, text=locale.get("btn_save_set"), fg_color=theme.PRIMARY, height=40,
                       command=lambda: self.show_notification(locale.get("msg_saved"))).pack(pady=40)
 
-    # --- Actions ---
     def change_language(self, value):
         locale.set_language(value)
         self.build_ui_structure()
@@ -405,7 +432,7 @@ class App(ctk.CTk):
 
     def change_theme(self, value):
         theme.set_mode(value)
-        self.build_ui_structure() # Перемальовуємо все під нові кольори
+        self.build_ui_structure()
 
     def change_currency(self, value):
         locale.set_currency(value)
@@ -426,7 +453,6 @@ class App(ctk.CTk):
                     break
         else:
             self.manager.add_product(product)
-        
         self.recalc_analytics()
         self.switch_view("dashboard")
         self.show_notification(locale.get("msg_saved"))
@@ -437,13 +463,11 @@ class App(ctk.CTk):
         self.switch_view("dashboard")
         self.show_notification(locale.get("msg_deleted"), is_error=True)
 
-    # --- Helpers ---
     def create_menu_btn(self, text, command, view_tag):
         is_active = (self.current_view == view_tag)
         color = theme.PRIMARY if is_active else "transparent"
         text_col = theme.TEXT_LIGHT if is_active else theme.TEXT_MAIN
-        if view_tag == "add":
-            is_active = False; color = "transparent"; text_col = theme.TEXT_MAIN
+        if view_tag == "add": is_active = False; color = "transparent"; text_col = theme.TEXT_MAIN
         ctk.CTkButton(self.sidebar, text=text, fg_color=color, text_color=text_col, 
                       hover_color=theme.SECONDARY, height=45, corner_radius=8, anchor="w", 
                       command=command).pack(fill="x", padx=15, pady=5)
@@ -459,7 +483,6 @@ class App(ctk.CTk):
         row = ctk.CTkFrame(parent, fg_color=theme.SECONDARY, height=40)
         row.pack(fill="x", pady=2)
         widths = [100, 140, 50, 60, 80, 80]
-        
         for i, (name, key) in enumerate(cols):
             w = widths[i] if i < len(widths) else 100
             lbl = ctk.CTkLabel(row, text=str(name), font=("Arial", 13, "bold"), text_color="white", width=w, anchor="w")
@@ -471,24 +494,19 @@ class App(ctk.CTk):
     def create_table_row(self, parent, product):
         row = ctk.CTkFrame(parent, fg_color=theme.SURFACE, height=40)
         row.pack(fill="x", pady=2)
-        
         txt_col = theme.TEXT_MAIN
         if product.is_dead_stock: txt_col = theme.COLOR_DEAD
-
         vals = [product.id_code, product.name, product.abc_category, 
-                str(product.quantity), f"{product.price}"]
+                str(product.quantity), product.strategy.upper()]
         widths = [100, 140, 50, 60, 80]
-        
         for i, val in enumerate(vals):
             col = txt_col
             if i == 2:
                 if val == "A": col = theme.COLOR_A
                 elif val == "B": col = theme.COLOR_B
                 elif val == "C": col = theme.COLOR_C
-            
             w = widths[i] if i < len(widths) else 100
             ctk.CTkLabel(row, text=str(val), font=("Arial", 13), text_color=col, width=w, anchor="w").pack(side="left", padx=5)
-
         ctk.CTkButton(row, text=locale.get("btn_view"), width=60, height=25, 
                       fg_color=theme.PRIMARY, text_color="white",
                       command=lambda: self.switch_view("details", product)).pack(side="left", padx=5)
@@ -499,7 +517,6 @@ class App(ctk.CTk):
         f.pack(fill="x", padx=20, pady=10)
         ctk.CTkLabel(f, text=label, text_color=theme.TEXT_SEC, font=("Arial", 14)).pack(side="left")
         ctk.CTkLabel(f, text=str(value), text_color=color, font=("Arial", 16, "bold")).pack(side="right")
-        # Line separator color also needs to adapt (optional)
         ctk.CTkFrame(parent, height=1, fg_color="gray").pack(fill="x", padx=10)
 
 if __name__ == "__main__":
