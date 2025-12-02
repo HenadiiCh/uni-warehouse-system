@@ -6,6 +6,17 @@ import uuid
 import ctypes
 from tkinter import messagebox
 
+import os
+import sys
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 from theme_manager import theme, locale, AppTheme 
 from models import Product, InventoryManager
 
@@ -95,6 +106,7 @@ class ProductDialog(ctk.CTkToplevel):
         entry = ctk.CTkEntry(parent, width=250, fg_color="white", text_color="black")
         entry.pack(pady=2)
         if default: entry.insert(0, default)
+        
         setattr(self, attr, entry)
 
     def show_help(self, topic):
@@ -137,7 +149,7 @@ class InfoDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(self, text="OptiStock Guide", font=("Arial", 20, "bold"), text_color=theme.PRIMARY).pack(pady=10)
         
-        # Використовуємо Textbox для великого тексту
+        #Textbox для великого тексту
         txt = ctk.CTkTextbox(self, width=550, height=450, fg_color=theme.SURFACE, 
                              text_color=theme.TEXT_MAIN, font=("Arial", 12))
         txt.pack(pady=10, padx=20)
@@ -145,7 +157,7 @@ class InfoDialog(ctk.CTkToplevel):
         # Вставка тексту з локалізації
         help_content = locale.get("help_text")
         txt.insert("0.0", help_content)
-        txt.configure(state="disabled") # Заборона редагування
+        txt.configure(state="disabled") 
 
 # --- MAIN APP ---
 class App(ctk.CTk):
@@ -179,7 +191,9 @@ class App(ctk.CTk):
     def load_images(self):
         try:
             def get_resized(path, width):
-                pil = Image.open(path)
+                #resource_path:
+                full_path = resource_path(path) 
+                pil = Image.open(full_path)
                 h = int(width * (pil.size[1] / pil.size[0]))
                 return ctk.CTkImage(light_image=pil, size=(width, h)), pil
 
@@ -193,12 +207,18 @@ class App(ctk.CTk):
         if self.icon_tk: self.iconphoto(True, self.icon_tk)
 
     def seed_demo_data(self):
+        # Якщо продукти вже є (завантажені з файлу), то демо-дані не додаємо
+        if len(self.manager.products) > 0:
+            self.recalc_analytics()
+            return
+
+        # Додаємо демо-дані тільки для чистого запуску
         p1 = Product("T1", "Trigger JIT Item", 100, 8, reorder_point=10, strategy="jit", sales_history=[10,10,10,10])
         p2 = Product("T2", "MinMax Safe", 200, 20, min_stock=10, max_stock=100, strategy="minmax", sales_history=[20,50,10,5])
         self.manager.add_product(p1)
         self.manager.add_product(p2)
         self.recalc_analytics()
-
+        
     def recalc_analytics(self):
         for p in self.manager.products: p.assign_xyz()
         self.manager.perform_abc_analysis()
@@ -451,8 +471,11 @@ class App(ctk.CTk):
                 if p.id_code == product.id_code:
                     self.manager.products[i] = product
                     break
+            # Явне збереження після редагування (бо add_product не викликався)
+            self.manager.save_data()
         else:
-            self.manager.add_product(product)
+            self.manager.add_product(product) # Тут збереження авто
+        
         self.recalc_analytics()
         self.switch_view("dashboard")
         self.show_notification(locale.get("msg_saved"))

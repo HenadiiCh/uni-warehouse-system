@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 import math
+import json
+import os
 from theme_manager import locale
 
 class IAnalyzable(ABC):
@@ -34,8 +36,8 @@ class Product(BaseItem, IAnalyzable):
         
         self.abc_category = None
         self.xyz_category = None
-        self.abc_share = 0.0 # Зберігаємо частку для пояснень
-        self.xyz_coeff = 0.0 # Зберігаємо коефіцієнт для пояснень
+        self.abc_share = 0.0
+        self.xyz_coeff = 0.0
         self.is_dead_stock = False
 
     def calculate_turnover(self) -> float:
@@ -48,7 +50,31 @@ class Product(BaseItem, IAnalyzable):
             return self
         return NotImplemented
 
-    # --- XYZ ---
+    # --- SERIALIZATION (Збереження у файл) ---
+    def to_dict(self):
+        """Перетворює об'єкт товару у словник для запису в JSON"""
+        return {
+            "id_code": self.id_code,
+            "name": self.name,
+            "price": self.price,
+            "quantity": self.quantity,
+            "type_id": self.type_id,
+            "ordering_cost": self.ordering_cost,
+            "holding_cost_percent": self.holding_cost_percent,
+            "discount": self.discount,
+            "sales_history": self.sales_history,
+            "min_stock": self.min_stock,
+            "max_stock": self.max_stock,
+            "reorder_point": self.reorder_point,
+            "strategy": self.strategy
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Створює об'єкт товару зі словника"""
+        return cls(**data)
+
+    # --- ANALYTICS METHODS ---
     def calculate_xyz_coefficient(self):
         if not self.sales_history or sum(self.sales_history) == 0:
             self.is_dead_stock = True
@@ -75,7 +101,6 @@ class Product(BaseItem, IAnalyzable):
         else:
             self.xyz_category = "Z"
 
-    # --- EOQ ---
     def calculate_eoq(self):
         if not self.sales_history or self.is_dead_stock: return 0
         avg_sales = sum(self.sales_history) / len(self.sales_history)
@@ -117,7 +142,6 @@ class Product(BaseItem, IAnalyzable):
                 return False, 0, f"Wait. {self.quantity} > Min ({self.min_stock})"
         return False, 0, "No Strategy"
 
-    # --- МЕТОДИ ПОЯСНЕНЬ (INSIGHTS) ---
     def get_abc_explanation(self):
         return locale.get("insight_abc").format(group=self.abc_category, share=round(self.abc_share, 2))
 
@@ -130,14 +154,40 @@ class Product(BaseItem, IAnalyzable):
         return locale.get("insight_eoq").format(qty=qty, order_cost=self.ordering_cost, hold_cost=f"{self.holding_cost_percent*100}%")
 
 class InventoryManager:
-    def __init__(self):
+    def __init__(self, storage_file="inventory.json"):
         self.products = []
+        self.storage_file = storage_file
+        self.load_data() # Завантажуємо при старті
 
     def add_product(self, product: Product):
         self.products.append(product)
+        self.save_data() # Зберігаємо при зміні
 
     def remove_product(self, product_id):
         self.products = [p for p in self.products if str(p.id_code) != str(product_id)]
+        self.save_data() # Зберігаємо при зміні
+
+    def save_data(self):
+        """Зберігає список товарів у JSON файл"""
+        try:
+            data = [p.to_dict() for p in self.products]
+            with open(self.storage_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving data: {e}")
+
+    def load_data(self):
+        """Завантажує список товарів з JSON файлу"""
+        if not os.path.exists(self.storage_file):
+            return 
+        
+        try:
+            with open(self.storage_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                self.products = [Product.from_dict(item) for item in data]
+        except Exception as e:
+            print(f"Error loading data: {e}")
+            self.products = []
 
     def perform_abc_analysis(self):
         active_products = [p for p in self.products if not p.is_dead_stock]
@@ -153,11 +203,7 @@ class InventoryManager:
             turnover = p.calculate_turnover()
             current_sum += turnover
             
-            # Зберігаємо частку цього товару у загальному обороті (не накопичувальну, а індивідуальну)
-            # Або для пояснення краще накопичувальну? Зазвичай цікавить внесок.
-            # Зробимо відсоток від загального
             p.abc_share = (turnover / total_value) * 100
-            
             cumulative_share = (current_sum / total_value) * 100
             
             if cumulative_share <= 75: 

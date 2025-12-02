@@ -1,0 +1,42 @@
+[
+    {
+        "id_code": "C1A963D1",
+        "name": "trhzrtzhrthz",
+        "price": 867788.0,
+        "quantity": 777,
+        "type_id": "goods",
+        "ordering_cost": 50.0,
+        "holding_cost_percent": 0.2,
+        "discount": 100.0,
+        "sales_history": [
+            10,
+            10,
+            10,
+            10
+        ],
+        "min_stock": 0,
+        "max_stock": 100,
+        "reorder_point": 10,
+        "strategy": "jit"
+    },
+    {
+        "id_code": "A0A2C642",
+        "name": "bfcbcf",
+        "price": 70.0,
+        "quantity": 10,
+        "type_id": "goods",
+        "ordering_cost": 50.0,
+        "holding_cost_percent": 0.2,
+        "discount": 0.0,
+        "sales_history": [
+            10,
+            10,
+            10,
+            10
+        ],
+        "min_stock": 0,
+        "max_stock": 100,
+        "reorder_point": 10,
+        "strategy": "jit"
+    }
+]
